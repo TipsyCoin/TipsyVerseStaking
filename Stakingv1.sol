@@ -346,8 +346,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         _harvested = HarvestCalc(msg.sender);
         userInfoMap[msg.sender].lastRewardBlock = block.timestamp;
         if (_harvested == 0) return _harvested;
-        //require(msg.sender == address(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4), "that's bad!");
-        //require(block.timestamp != 0, "uhoh!");
+
         if (!actualMint)
         {
             userInfoMap[msg.sender].rewardEarnedNotMinted += _harvested;
@@ -361,8 +360,8 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         }
         else
         {
-            IGinMinter(gin).mintGin(msg.sender, _harvested);
             userInfoMap[msg.sender].rewardDebt += _harvested;
+            IGinMinter(gin).mintGin(msg.sender, _harvested);
         }
         return _harvested;
     }
