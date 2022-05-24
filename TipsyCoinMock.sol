@@ -1,4 +1,6 @@
-//SPDX-License-Identifier: UNLICENSED
+//SPDX-License-Identifier: MIT
+//This file is not part of any audit, but is useful for testing the functionality of our staking
+//Without the need to deploy on a testnet
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -16,6 +18,7 @@ contract ERC20 is IERC20, Ownable, Pausable {
     uint8 internal _decimals;
     uint256 internal _totalSupply;
     uint256 public _rTotal;
+    address public constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     mapping (address => uint256) internal _balances;
     mapping (address => mapping (address => uint256)) internal _allowed;
@@ -73,30 +76,35 @@ contract ERC20 is IERC20, Ownable, Pausable {
     return _reflexSpaceTokens * 1e18 / _rTotal;
     }
 
-
-    function transfer(
-        address _to, 
-        uint256 _value
-    ) public override
-        whenNotPaused 
-      returns (bool)
-    {
-        require(_to != address(0), 'ERC20: to address is not valid');
-        require(_value <= _balances[msg.sender], 'ERC20: insufficient balance');
-        
-        _balances[msg.sender] = _balances[msg.sender] - _value;
-        _balances[_to] = _balances[_to] + _value;
-        
-        emit Transfer(msg.sender, _to, _value);
-        
+    function transfer(address recipient, uint256 amount) public returns (bool) {
+        _transfer(_msgSender(), recipient, amount);
+        emit Transfer(_msgSender(), recipient, amount);
         return true;
     }
 
-   function balanceOf(
-       address _owner
-    ) public override view returns (uint256 balance) 
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public {
+        require(sender != address(0), "tipsy: transfer from the zero address");
+        //require(amount > 0, "tipsy: transfer amount must be greater than zero"); Probably don't need to worry about this
+        //If sender or recipient are immune from fee, don't use maxTxAmount
+        //Usage of excludedFromFee means regular user to PCS enforces maxTxAmount
+
+        uint256 realAmount = _reflexToReal(amount);
+
+        uint256 senderBalance = _balances[sender];
+        require(senderBalance >= realAmount, "ERC20: transfer amount exceeds balance");
+        unchecked {
+            _balances[sender] = senderBalance - realAmount;
+        }
+        _balances[recipient] += realAmount;
+
+    }
+    function balanceOf(address account) public view returns (uint256)
     {
-        return _balances[_owner];
+        return _balances[account] * _rTotal / 1e18;
     }
 
     function approve(
@@ -113,26 +121,18 @@ contract ERC20 is IERC20, Ownable, Pausable {
         return true;
    }
 
-   function transferFrom(
-        address _from, 
-        address _to, 
-        uint256 _value
-    ) public override
-        whenNotPaused
-      returns (bool) 
-    {
-        require(_from != address(0), 'ERC20: from address is not valid');
-        require(_to != address(0), 'ERC20: to address is not valid');
-        require(_value <= _balances[_from], 'ERC20: insufficient balance');
-        //require(_value <= _allowed[_from][msg.sender], 'ERC20: from not allowed');
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public returns (bool) {
 
-        _balances[_from] = _balances[_from] -  _value;
-        _balances[_to] = _balances[_to] + _value;
-        
-        emit Transfer(_from, _to, _value);
-        
+        //Skip collecting fee if sender (person's tokens getting pulled) is excludedFromFee
+        _transfer(sender, recipient, amount);
+        //Emit Transfer Event. _taxTransaction emits a seperate sell fee collected event, _reflect also emits a reflect ratio changed event
+
         return true;
-   }
+    }
 
     function allowance(
         address _owner, 
