@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract ERC20 is IERC20, Ownable, Pausable {
+contract TipsyCoinMock is IERC20, Ownable, Pausable {
 
 
     string internal _name;
