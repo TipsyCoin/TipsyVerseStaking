@@ -358,6 +358,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         return userInfoMap[_user].rewardDebt;
     }
 
+
     function GetStakeReflex(address user) internal view returns (uint)
     {
         return TipsyCoin._realToReflex(userInfoMap[user].lastWeight);
@@ -416,7 +417,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         if (stakingLevel == 0)
         {
             require(UserLevels[stakingLevel+1].minimumStaked == 0 || 
-                    UserLevels[stakingLevel+1].minimumStaked > amountStaked, "tipsy: staking amount too low for 0");
+                    UserLevels[stakingLevel+1].minimumStaked > amountStaked, "tipsy: staking amount too high for 0");
         }
         else{
             require(UserLevels[stakingLevel-1].minimumStaked < amountStaked, "tipsy: staking amount too low for level");
