@@ -6,12 +6,9 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract TipsyCoinMock is IERC20, Ownable, Pausable {
-
+contract ERC20 is IERC20 {
 
     string internal _name;
     string internal _symbol;
@@ -77,8 +74,8 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
     }
 
     function transfer(address recipient, uint256 amount) public returns (bool) {
-        _transfer(_msgSender(), recipient, amount);
-        emit Transfer(_msgSender(), recipient, amount);
+        _transfer(msg.sender, recipient, amount);
+        emit Transfer(msg.sender, recipient, amount);
         return true;
     }
 
@@ -86,7 +83,7 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
         address sender,
         address recipient,
         uint256 amount
-    ) public {
+    ) internal {
         require(sender != address(0), "tipsy: transfer from the zero address");
         //require(amount > 0, "tipsy: transfer amount must be greater than zero"); Probably don't need to worry about this
         //If sender or recipient are immune from fee, don't use maxTxAmount
@@ -111,7 +108,6 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
        address _spender, 
        uint256 _value
     ) public override
-        whenNotPaused
       returns (bool) 
     {
         _allowed[msg.sender][_spender] = _value;
@@ -138,7 +134,6 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
         address _owner, 
         address _spender
     ) public override view 
-        whenNotPaused
       returns (uint256) 
     {
         return _allowed[_owner][_spender];
@@ -148,7 +143,6 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
         address _spender, 
         uint _addedValue
     ) public
-        whenNotPaused
       returns (bool)
     {
         _allowed[msg.sender][_spender] = _allowed[msg.sender][_spender] - _addedValue;
@@ -162,7 +156,6 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
         address _spender, 
         uint _subtractedValue
     ) public
-        whenNotPaused
       returns (bool) 
     {
         uint oldValue = _allowed[msg.sender][_spender];
@@ -181,8 +174,7 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
     function mintTo(
         address _to,
         uint _amount
-    ) public
-        whenNotPaused
+    ) public returns (bool)
     {
         require(_to != address(0), 'ERC20: to address is not valid');
         require(_amount > 0, 'ERC20: amount is not valid');
@@ -191,13 +183,13 @@ contract TipsyCoinMock is IERC20, Ownable, Pausable {
         _balances[_to] = _balances[_to] + _amount;
 
         emit Mint(msg.sender, _to, _amount);
+        return true;
     }
 
     function burnFrom(
         address _from,
         uint _amount
-    ) public
-        whenNotPaused
+    ) internal
     {
         require(_from != address(0), 'ERC20: from address is not valid');
         require(_balances[_from] >= _amount, 'ERC20: insufficient balance');
