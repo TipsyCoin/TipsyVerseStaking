@@ -552,6 +552,43 @@ describe('TokenTimeLock Contract Tests', () => {
             await expect(tipsyStaking.initialize(account1.address, tipsyCoinMock.address)).to.be.revertedWith("Initializable: contract is already initialized");
         });
 
+        it('Test 16 : Renounce Ownership', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+
+            await tipsyStaking.deployed();
+
+            await tipsyStaking.connect(deployer).renounceOwnership();
+
+            await expect(tipsyStaking.connect(deployer).addLevel(0,1,2)).to.be.revertedWith("Ownable123: caller is not the owner");
+            await expect(tipsyStaking.connect(deployer).setLevel(0,1,2)).to.be.revertedWith("Ownable123: caller is not the owner");
+            await expect(tipsyStaking.connect(deployer).deleteLevel(2)).to.be.revertedWith("Ownable123: caller is not the owner");
+            await expect(tipsyStaking.connect(deployer).pause()).to.be.revertedWith("Ownable123: caller is not the owner");
+            await expect(tipsyStaking.connect(deployer).transferOwnership(account1.address)).to.be.revertedWith("Ownable123: caller is not the owner");
+            await expect(tipsyStaking.connect(deployer).AdminKick(account1.address)).to.be.revertedWith("Ownable123: caller is not the owner");
+
+        });
+
+        it('Test 17 : Transfer Ownership', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+
+            await tipsyStaking.deployed();
+
+            await tipsyStaking.connect(deployer).transferOwnership(account1.address);
+            
+            await tipsyStaking.connect(account1).pause();
+            await tipsyStaking.connect(account1).unpause();
+
+            await tipsyStaking.connect(account1).transferOwnership(deployer.address);
+
+            await tipsyStaking.connect(deployer).pause();
+            await tipsyStaking.connect(deployer).unpause();
+        });
+
 
     });
 });
