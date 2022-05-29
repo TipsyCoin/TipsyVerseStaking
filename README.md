@@ -43,7 +43,7 @@ Solidity contracts and Hardhat tests for TipsyCoin's staking feature
 
 - Rewards are not split between all staked users. Instead, each user receives the amount of Gin listed below, regardless of how many other users stake.
 
-- Tipsy Silver (10e6 Tipsy staked): ~100 Gin per day
+- Tipsy Silver (10e6 Tipsy staked): ~100 Gin per day. This is considered the 1x Gin rate
 - Tipsy Gold (50e6 Tipsy staked): ~550 Gin per day
 - Tipsy Platinum (100e6 Tipsy staked): ~1200 Gin per day
 
