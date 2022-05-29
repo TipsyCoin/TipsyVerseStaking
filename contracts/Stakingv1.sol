@@ -286,8 +286,8 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         }
         else if (actualMint && userInfoMap[msg.sender].rewardEarnedNotMinted > 0)
         {
-            userInfoMap[msg.sender].rewardEarnedNotMinted = 0;
             _harvested = _harvested + userInfoMap[msg.sender].rewardEarnedNotMinted;
+            userInfoMap[msg.sender].rewardEarnedNotMinted = 0;
             userInfoMap[msg.sender].rewardDebt += _harvested;
             GinBridge.mintTo(msg.sender, _harvested);
         }
