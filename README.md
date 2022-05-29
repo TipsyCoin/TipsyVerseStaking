@@ -3,11 +3,11 @@
 Solidity contracts and Hardhat tests for TipsyCoin's staking feature
 
 ## Introduction
-- TipsyCoin is a Safemoon style token (with a number of design changes) used as the governance token for the TipsyVerse game and ecosystem. The code for this token is available here: https://github.com/TipsyCoin/TipsyCoin . TipsyCoin launched on PCS in March 2022, and was audited by CertiK.
+TipsyCoin is a Safemoon style token (with a number of design changes) used as the governance token for the TipsyVerse game and ecosystem. The code for this token is available here: https://github.com/TipsyCoin/TipsyCoin . TipsyCoin launched on PCS in March 2022, and was audited by CertiK.
 
-- TipsyCoin staking (TipsyStake) is the next step towards the release of the TipsyVerse blockchain integrated Minecraft game. TipsyStake allows users to stake their TipsyCoin for a period of 90 days and farm Gin, the in game currency in TipsyVerse, that players can use for things like buying in-game items.
+TipsyCoin staking (TipsyStake) is the next step towards the release of the TipsyVerse blockchain integrated Minecraft game. TipsyStake allows users to stake their TipsyCoin for a period of 90 days and farm Gin, the in game currency in TipsyVerse, that players can use for things like buying in-game items.
 
-- Users staking TipsyCoin will also receive a discount for in-game items based on their staking tier, and may also be integrated with upcoming projects in the TipsyVerse ecosystem.
+Users staking TipsyCoin will also receive a discount for in-game items based on their staking tier, and may also be integrated with upcoming projects in the TipsyVerse ecosystem.
 
 ## Design notes
 - The TipsyVerse Minecraft game is to be released on the Polygon network, but the tokenomic design and BSC -> Polygon bridge design have not yet been finalized, so there is a period of time where Gin rewards will be tracked on TipsyStake, but cannot be collected or bridged to Polygon.
@@ -56,6 +56,8 @@ Solidity contracts and Hardhat tests for TipsyCoin's staking feature
 - A User's tier and that tier's Gin multiplier are 'locked in' when a user Stakes. This means a future change to a particular tier, for example, increasing the staking requirement from 10e6 Tipsy to 20e6, would not update the user's tier and multiplier. This allows to keep their current tier of Gin distribution and in-game discounts if they don’t stake or unstake, even if we adjust the tiers.
 
 - A 'Kick' function exists for users to manually sync their Staking tier if they would find it beneficial
+
+- An emergency pause function exists so we can halt the contract if we need to upgrade it to fix bugs or add features
 
 - An admin 'Kick' function also exists, and can be used to kick any user while the contract is paused
 
