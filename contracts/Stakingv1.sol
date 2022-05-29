@@ -340,7 +340,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         userInfoMap[msg.sender].userMulti = 0; //No multi
 
         //do a transfer to user
-        TipsyCoin.transfer(msg.sender, _tokenToReturn);
+        require(TipsyCoin.transfer(msg.sender, _tokenToReturn), "Tipsy: transfer to user failed");
         return _tokenToReturn;
     }
 
