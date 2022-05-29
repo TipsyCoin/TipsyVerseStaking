@@ -21,7 +21,7 @@ interface IGinMinter {
     ) external;
 }
 
-interface ITipsy is IERC20 {
+interface ITipsy is IERC20Metadata {
     function _reflexToReal(
         uint _amount
     ) external view returns (uint256);
@@ -29,8 +29,10 @@ interface ITipsy is IERC20 {
     function _realToReflex(
         uint _amount
     ) external view returns (uint256);
-}
 
+}
+//We use a slightly customised Ownable contract, to ensure it works nicely with our proxy setup
+//And to prevent randos from initializing / taking over the base contract
 abstract contract Ownable is Context {
     address private _owner;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -100,27 +102,32 @@ abstract contract Ownable is Context {
  * @title Storage
  * @dev Store & retrieve value in a variable
  */
+
 contract TipsyStaking is Ownable, Initializable, Pausable {
 
+    //Private / Internal Vars
+    //Not private for security reasons, just to prevent clutter in bscscan
+    uint8 internal _levelCount;
+    address internal TipsyAddress;
+    address internal ginAddress;
+
+    //Public Vars
     mapping(address => UserInfo) public userInfoMap;
     mapping(uint8 => StakingLevel) public UserLevels; 
-    mapping(uint8 => string) LevelNames; 
+    mapping(uint8 => string) public LevelNames; 
     uint256 public totalWeight;
-    uint8 private _levelCount;
-    address internal TipsyAddress;
     ITipsy public TipsyCoin;
-    address internal ginAddress;
     IGinMinter public GinBridge;
     uint public lockDuration;
-
-    //uint public ginDripRate = 1e6; //Total amount of Gin to drip per second
     uint public ginDripPerUser; //Max amount per user to drip per second
     bool actualMint; //Are we actually live yet?
     address public constant DEAD_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
-    struct UserInfo{
+    //Structs
+    struct UserInfo {
         uint256 lastAction;
         uint256 lastWeight;
+        //RewardDebt currently written but not read. May be used in part of future ecosystem - don't remove
         uint256 rewardDebt;
         uint256 lastRewardBlock;
         uint256 rewardEarnedNotMinted;
@@ -168,8 +175,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         uint indexed newTotal
     );
 
-    //Views
-
+    //View Functions
     function reflexToReal(uint _reflexAmount) public view returns (uint){
         return TipsyCoin._reflexToReal(_reflexAmount);
     }  
@@ -177,75 +183,156 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
     function realToReflex(uint _realAmount) public view returns (uint){
 
         return TipsyCoin._realToReflex(_realAmount);
-    }  
-
-    function setGinAddress(address _gin) public onlyOwner
-    {
-        require (_gin != address(0));
-        GinBridge = IGinMinter(_gin);
-        actualMint = true;
-        ginAddress = _gin;
-        require (GinBridge.mintTo(DEAD_ADDRESS, 1e18), "Tipsy: Couldn't test mint Gin");
-        emit LiveGin(_gin, actualMint);
     }
 
-    //New stake strategy is to convert reflex amount to real_amount and use real_amount as weight 
-    //Need to store user tier after staking so tier adjustments don't mess it ass
-    function Stake(uint amount) public whenNotPaused returns (uint)
+    function getLockDurationOK(address _user) public view returns (bool)
+    {
+        //Returns whether lock duration is over. Staking resets duration, unstaking won't.
+        return userInfoMap[_user].lastAction + lockDuration <= block.timestamp;   
+    }
+
+    //Front end needs to know how much gin has been allocated to a user, but not sent out yet
+    //This function returns EARNED, BUT NOT LIVE Gin 
+    //Function should not be used once Gin distribution begins on Polygon
+    function getAllocatedGin(address _user) public view returns (uint _amount)
+    {
+        return userInfoMap[_user].rewardEarnedNotMinted;
+    }
+
+    //Important method, used to calculate how much gin to give to user
+    //Easy to get the math wrong here
+    function harvestCalc(address _user) public view returns (uint _amount)
+    {
+        if (userInfoMap[_user].lastWeight == 0)
+        {
+            return 0;
+        }
+        else
+        {
+        //return (block.timestamp - userInfoMap[_user].lastRewardBlock) * ginDripPerUser * UserLevels[userInfoMap[_user].userLevel].multiplier/1e3;
+        //Use cached User level multi
+        return (block.timestamp - userInfoMap[_user].lastRewardBlock) * ginDripPerUser * userInfoMap[_user].userMulti/1e3;
+        }
+    }
+
+    function getStakeReflex(address user) public view returns (uint)
+    {
+        return TipsyCoin._realToReflex(userInfoMap[user].lastWeight + 1);
+    }
+
+    //Unused by contract now, but may be useful for frontend
+    function getLevelByWeight(uint realWeight) public view returns (uint8)
+    {
+        return getLevel(TipsyCoin._realToReflex(realWeight + 1));
+    }
+
+    function getLevel(uint amountStaked) public view returns (uint8)
+    {
+        //amountStaked MUST BE IN reflexSpace
+        //MinimumStake MUST BE IN reflexSpace
+        //for loop not ideal here, but are only 3 levels planned, so not a big deal
+        uint baseLine = UserLevels[0].minimumStaked;
+
+        if (amountStaked < baseLine) return ~uint8(0);
+        else {
+            for (uint8 i = 1; i < _levelCount; i++)
+            {
+                if (UserLevels[i].minimumStaked > amountStaked) return i-1;
+            }
+        return _levelCount-1;
+        }
+    }
+
+    //Not used in code, but may be useful for front end to easily show reflex space staked balance to user
+    function getUserBal(address _user) public view returns (uint)
+    {
+        return (TipsyCoin._realToReflex(userInfoMap[_user].lastWeight + 1));
+    }
+
+    //Testing View Params
+    //added for TESTING
+    function getUserRewardBlock(address _user) public view returns (uint256) 
+    {
+        return userInfoMap[_user].lastRewardBlock;
+    }
+
+    function getUserRewardDebt(address _user) public view returns (uint256) 
+    {
+        return userInfoMap[_user].rewardDebt;
+    }
+
+    function getLevelName(uint amountStaked) public view returns (string memory)
+    {
+        //AMOUNT STAKED MUST BE IN REFLEX SPACE
+        uint8 _stakingLevel = getLevel(amountStaked + 1);
+        return LevelNames[_stakingLevel];
+    }
+
+    //Not used in contract, may still be useful for FrontEnd
+    function getUserLvlTxt_Cached(address _user) public view returns (string memory _level)
+    {
+        _level = LevelNames[ userInfoMap[_user].userLevel ];
+        return _level;
+    }
+
+    //Public Write Functions
+
+
+    //New stake strategy is to convert reflex 'amount' to real_amount and use real_amount as weight 
+    //Need to store user tier after staking so tier adjustments don't mess it
+    function stake(uint _amount) public whenNotPaused returns (uint)
     {
         //We have to be careful about a first harvest, because userLevel inits to 0, which is an actual real level
-        //And lastRewardBlock will init to 0, too, so a billion tokens will be allocated
- 
-        Harvest();
-        uint realAmount = reflexToReal(amount + 1);
+        //And lastRewardBlock will init to 0, too, so a bazillion tokens will be allocated
+        harvest();
 
-        require(TipsyCoin.transferFrom(msg.sender, address(this), amount), "Tipsy: transferFrom user failed");
+        //Convert reflex space _amount, into real space amount. +1 to prevent annoying division rounding errors
+        uint realAmount = reflexToReal(_amount + 1);
+
+        //TipsyCoin public methods like transferFrom take reflex space params
+        require(TipsyCoin.transferFrom(msg.sender, address(this), _amount), "Tipsy: transferFrom user failed");
+
         //Measure all weightings in real space
-
         userInfoMap[msg.sender].lastAction = block.timestamp;
         userInfoMap[msg.sender].lastWeight += realAmount;
-        userInfoMap[msg.sender].userLevel = getLevel(GetStakeReflex(msg.sender));
+        userInfoMap[msg.sender].userLevel = getLevel(getStakeReflex(msg.sender));
         userInfoMap[msg.sender].userMulti = UserLevels[userInfoMap[msg.sender].userLevel].multiplier;
-        //Require user's stake be at a minimum level
+
+        //Require user's stake be at a minimum level. Reminder that 255 is no level
         require(userInfoMap[msg.sender].userLevel < 255, "Tipsy: Amount staked insufficient for rewards");
 
         totalWeight += realAmount;
-        emit Staked(msg.sender, amount, userInfoMap[msg.sender].lastWeight);
-        return amount;
-    }
-
-    //New unstake strategy is to convert real_amount weight to reflex amount and use real_amount as weight 
-    //In live version, Unstake will be removed. Decided that Users must Unstake all
-    function Unstake(uint _amount) public whenNotPaused returns(uint _tokenToReturn)
-    {   
-        uint realAmount = reflexToReal(_amount);
-        require(GetLockDurationOK(msg.sender), "Tipsy: Lock duration not expired");
-        require(_amount > 0, "Tipsy: May not Unstake 0");
-        require (userInfoMap[msg.sender].lastWeight >= realAmount, "Tipsy: Attempted to unstake more amount than balance");
-        Harvest();
-        _tokenToReturn = TipsyCoin.balanceOf(address(this)) * totalWeight / realAmount;
-        //instead assume tokens == totalWeight
-        _tokenToReturn = totalWeight * realAmount / totalWeight;
-        totalWeight -= realAmount;
-        userInfoMap[msg.sender].lastWeight -= realAmount;
-        TipsyCoin.transfer(msg.sender, _tokenToReturn);
-        userInfoMap[msg.sender].userLevel = 255; //~0 is no level
-        userInfoMap[msg.sender].userMulti = 0; //No multi
-        emit Unstaked(msg.sender, _amount, userInfoMap[msg.sender].lastWeight);
-        return _tokenToReturn;
+        emit Staked(msg.sender, _amount, userInfoMap[msg.sender].lastWeight);
+        return _amount;
     }
 
     //Users may only unstake all tokens they have staked
     //Unstaking does not reset 3 month timer (pointless) 
-    function UnstakeAll() public whenNotPaused returns (uint _tokenToReturn)
+    function unstakeAll() public whenNotPaused returns (uint _tokenToReturn)
     {
-        require(GetLockDurationOK(msg.sender), "Tipsy: Can't unstake before Lock is over");
+        require(getLockDurationOK(msg.sender), "Tipsy: Can't unstake before Lock is over");
         require(userInfoMap[msg.sender].lastWeight > 0, "Tipsy: Your staked amount is already Zero");
-        Harvest();
-        //todo fix the problem child
+        harvest();
+        //Calculate balance to return. Gets a bit difficult with reflex rewards
         _tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
-        //instead assume 100 tokens. change to balanceOf(this)
-        //_tokenToReturn = totalWeight * userInfoMap[msg.sender].lastWeight / totalWeight;
+
+        emit Unstaked(msg.sender, _tokenToReturn, 0);
+
+        totalWeight -= userInfoMap[msg.sender].lastWeight;
+        userInfoMap[msg.sender].lastWeight = 0;
+        userInfoMap[msg.sender].userLevel = 255; //~0 is no level
+        userInfoMap[msg.sender].userMulti = 0; //No multi
+
+        //Transfer to user, check return
+        require(TipsyCoin.transfer(msg.sender, _tokenToReturn), "Tipsy: transfer to user failed");
+        return _tokenToReturn;
+    }
+
+    //Maybe? Only allow emergency withdraw if paused, and user forfeits any pending harvest
+    function EmergencyUnstake() public whenPaused returns (uint _tokenToReturn)
+    {
+        require(userInfoMap[msg.sender].lastWeight > 0, "Tipsy: Can't unstake (no active stake)");
+        _tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
         emit Unstaked(msg.sender, _tokenToReturn, 0);
         totalWeight -= userInfoMap[msg.sender].lastWeight;
         userInfoMap[msg.sender].lastWeight = 0;
@@ -253,33 +340,17 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         userInfoMap[msg.sender].userMulti = 0; //No multi
 
         //do a transfer to user
-        require(TipsyCoin.transfer(msg.sender, _tokenToReturn), "Tipsy: transfer to user failed");
-        return _tokenToReturn;
-    }
-
-    function EmergencyUnstake() public whenPaused returns (uint _tokenToReturn)
-    //Maybe? Only allow emergency withdraw if paused, and user forfeits any pending harvest
-    {
-        require(userInfoMap[msg.sender].lastWeight > 0, "Can't unstake 0");
-        //userInfoMap[msg.sender].lastAction = block.timestamp;
-        //_tokenToReturn = TipsyCoin.balanceOf(address(this)) * realAmount / totalWeight;
-        //instead assume 100 tokens
-        _tokenToReturn = totalWeight * userInfoMap[msg.sender].lastWeight / totalWeight;
-        emit Unstaked(msg.sender, _tokenToReturn, 0);
-        totalWeight -= userInfoMap[msg.sender].lastWeight;
-        userInfoMap[msg.sender].lastWeight = 0;
-
-        //do a transfer to user
         TipsyCoin.transfer(msg.sender, _tokenToReturn);
         return _tokenToReturn;
     }
 
-        function Harvest() public whenNotPaused returns(uint _harvested)
+        function harvest() public whenNotPaused returns(uint _harvested)
     {
-        _harvested = HarvestCalc(msg.sender);
+        //Calculate how many tokens have been earned
+        _harvested = harvestCalc(msg.sender);
         userInfoMap[msg.sender].lastRewardBlock = block.timestamp;
         if (_harvested == 0) return 0;
-
+        //Do a switch based on whether we're live Minting or just Allocating
         if (!actualMint)
         {
             userInfoMap[msg.sender].rewardEarnedNotMinted += _harvested;
@@ -299,19 +370,33 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         return _harvested;
     }
 
-    function Kick() public whenNotPaused
+    function kick() public whenNotPaused
     {
-        //User may use this to recheck their level and multiplier, without needing to stake more tokens and reset their lock
-        Harvest();
-        userInfoMap[msg.sender].userLevel = getLevel(GetStakeReflex(msg.sender));
+        //User may use this to sync their level and multiplier, without needing to stake more tokens and reset their lock
+        //Used if for e.g. we adjust the tiers to require a lower amount of Tipsy or increase the rewards per tier
+        harvest();
+        userInfoMap[msg.sender].userLevel = getLevel(getStakeReflex(msg.sender));
         userInfoMap[msg.sender].userMulti = UserLevels[userInfoMap[msg.sender].userLevel].multiplier;
     }
 
-    function AdminKick(address _user) public onlyOwner whenPaused
+    //Restricted Write Functions
+
+    function setGinAddress(address _gin) public onlyOwner
+    {
+        require (_gin != address(0));
+        GinBridge = IGinMinter(_gin);
+        actualMint = true;
+        ginAddress = _gin;
+        require (GinBridge.mintTo(DEAD_ADDRESS, 1e18), "Tipsy: Couldn't test-mint some Gin");
+        emit LiveGin(_gin, actualMint);
+    }
+
+
+    function adminKick(address _user) public onlyOwner whenPaused
     {
         //Admin Kick() for any user. Just so we can update old weights and multipliers if they're not behaving properly
         //May only be used when Paused
-        userInfoMap[_user].userLevel = getLevel(TipsyCoin._realToReflex(userInfoMap[_user].lastWeight));
+        userInfoMap[_user].userLevel = getLevel(getStakeReflex(_user));
         userInfoMap[_user].userMulti = UserLevels[userInfoMap[_user].userLevel].multiplier;
     }
 
@@ -321,77 +406,8 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         lockDuration = _newDuration;
     }
 
-    function GetLockDurationOK(address _user) public view returns (bool)
-    {
-        //Returns whether lock duration is over. Staking resets duration, unstaking won't.
-        return userInfoMap[_user].lastAction + lockDuration <= block.timestamp;   
-    }
 
-    //Front end needs to know how much gin has been allocated to a user, but not sent out yet
-    //This function returns EARNED, BUT NOT LIVE Gin 
-    //Function should not be used once Gin distribution begins on Polygon
-    function getAllocatedGin(address _user) public view returns (uint _amount)
-    {
-        return userInfoMap[_user].rewardEarnedNotMinted;
-    }
-
-    //Important method, used to calculate how much gin to give to user
-    function HarvestCalc(address _user) public view returns (uint _amount)
-    {
-        if (userInfoMap[_user].lastWeight == 0)
-        {
-            return 0;
-        }
-        else
-        {
-        //return (block.timestamp - userInfoMap[_user].lastRewardBlock) * ginDripPerUser * UserLevels[userInfoMap[_user].userLevel].multiplier/1e3;
-        return (block.timestamp - userInfoMap[_user].lastRewardBlock) * ginDripPerUser * userInfoMap[_user].userMulti/1e3;
-        }
-    }
-
-    function GetStakeReflex(address user) public view returns (uint)
-    {
-        return TipsyCoin._realToReflex(userInfoMap[user].lastWeight + 1);
-    }
-
-    function getLevelByWeight(uint realWeight) internal view returns (uint8)
-    {
-        return getLevel(TipsyCoin._realToReflex(realWeight + 1));
-    }
-
-    function getLevel(uint amountStaked) public view returns (uint8)
-    {
-        //amountStaked MUST BE IN reflexSpace
-        //MinimumStake MUST BE IN reflexSpace
-
-        //for loop not ideal here, but there will only be 3 levels, so not a big deal
-        uint baseLine = UserLevels[0].minimumStaked;
-
-        if (amountStaked < baseLine) return ~uint8(0);
-        else {
-            for (uint8 i = 1; i < _levelCount; i++)
-            {
-                if (UserLevels[i].minimumStaked > amountStaked) return i-1;
-            }
-        return _levelCount-1;
-        }
-    }
-
-    function getLevelName(uint amountStaked) public view returns (string memory)
-    {
-        //AMOUNT STAKED MUST BE IN REFLEX SPACE
-        uint8 _stakingLevel =  getLevel(amountStaked + 1);
-        return LevelNames[_stakingLevel];
-    }
-
-    //Not used in contract, may still be useful for FrontEnd
-    function getUserLevelText(address _user) public view returns (string memory _level)
-    {
-        _level = LevelNames[ userInfoMap[_user].userLevel ];
-        return _level;
-    }
-
-        function addLevel(uint8 _stakingLevel, uint amountStaked, uint multiplier) public onlyOwner
+    function addLevel(uint8 _stakingLevel, uint amountStaked, uint multiplier) public onlyOwner
     {
         require(UserLevels[_stakingLevel].minimumStaked == 0, "Not a new level");
         setLevel(_stakingLevel, amountStaked, multiplier);
@@ -429,40 +445,6 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         return true;
     }
 
-    constructor(address _tipsyAddress)
-    {   
-        //Testing only. Real version should be initialized() as we're using proxies
-        initialize(msg.sender, _tipsyAddress);
-        Stake(50e6);
-        //First harvest test check
-        require(getAllocatedGin(msg.sender) == 0, "Shoudn't be more than zero here");
-    }
-
-    function initialize(address owner_, address _tipsyAddress) public initializer
-    {   
-        
-        require(owner_ != address(0), "tipsy: owner can't be 0 address");
-        require(_tipsyAddress != address(0), "tipsy: Tipsy can't be 0 address");
-        TipsyAddress = _tipsyAddress;
-        initOwnership(owner_);
-        lockDuration = 90 days;
-        actualMint = false;
-        TipsyCoin = ITipsy(TipsyAddress);
-        //AddLevel amount MUST BE IN REAL SPACE
-        //AddLevel multiplier 1000 = 1x
-        addLevel(0, 10e6, 1000); //10 Million $tipsy, 1x
-        addLevel(1, 50e6, 5500); //50 Million $tipsy, 5.5x
-        addLevel(2, 100e6, 12000); //100 Million $tipsy, 12x
-        setLevelName(0, "Tipsy Silver");
-        setLevelName(1, "Tipsy Gold");
-        setLevelName(2, "Tipsy Platinum");
-        setLevelName(~uint8(0), "No Stake");
-        //AddLevel = Level, Amount Staked, Multiplier
-        //GinDrip is PER SECOND, PER USER, based on a multiplier of 1000 (1x)
-        ginDripPerUser = 1157407407407407; //100 Gin per day = 100×1e18 / 24 / 60 / 60
-        require(TipsyCoin._realToReflex(1e18) >= 1e18, "TipsyCoin function check failed");
-    }
-
     function pause() public onlyOwner whenNotPaused
     {
         _pause();
@@ -473,16 +455,38 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         _unpause();
     }
 
-    //Testing Params
-        //added for TESTING
-    function getUserRewardBlock(address _user) public view returns (uint256) 
-    {
-        return userInfoMap[_user].lastRewardBlock;
+    //Initializer Functions
+
+    //Constructor is for Testing only. Real version should be initialized() as we're using proxies
+    constructor(address _tipsyAddress)
+    {   
+        initialize(msg.sender, _tipsyAddress);
+        //stake(50e6 * 10 ** TipsyCoin.decimals());
+        //require(getAllocatedGin(msg.sender) == 0, "Shoudn't be more than zero here");
     }
 
-    function getUserRewardDebt(address _user) public view returns (uint256) 
-    {
-        return userInfoMap[_user].rewardDebt;
+    function initialize(address owner_, address _tipsyAddress) public initializer
+    {   
+        require(owner_ != address(0), "Tipsy: owner can't be 0 address");
+        require(_tipsyAddress != address(0), "Tipsy: Tipsy can't be 0 address");
+        TipsyAddress = _tipsyAddress;
+        initOwnership(owner_);
+        lockDuration = 90 days;
+        actualMint = false;
+        TipsyCoin = ITipsy(TipsyAddress);
+        //AddLevel amount MUST BE IN REAL SPACE
+        //AddLevel multiplier 1000 = 1x
+        addLevel(0, 10e6 * 10 ** TipsyCoin.decimals(), 1000); //10 Million $tipsy, 1x
+        addLevel(1, 50e6 * 10 ** TipsyCoin.decimals(), 5500); //50 Million $tipsy, 5.5x
+        addLevel(2, 100e6 * 10 ** TipsyCoin.decimals(), 12000); //100 Million $tipsy, 12x
+        setLevelName(0, "Tipsy Silver");
+        setLevelName(1, "Tipsy Gold");
+        setLevelName(2, "Tipsy Platinum");
+        setLevelName(~uint8(0), "No Stake");
+        //AddLevel = Level, Amount Staked, Multiplier
+        //GinDrip is PER SECOND, PER USER, based on a multiplier of 1000 (1x)
+        ginDripPerUser = 1157407407407407; //100 Gin per day = 100×1e18 / 24 / 60 / 60
+        require(TipsyCoin._realToReflex(1e18) >= 1e18, "TipsyCoin test function check failed");
     }
 
 }
