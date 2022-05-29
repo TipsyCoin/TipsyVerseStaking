@@ -387,7 +387,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
     //Not used in contract, may still be useful for FrontEnd
     function getUserLevelText(address _user) public view returns (string memory _level)
     {
-        _level = getLevelName(GetStakeReflex(_user));
+        _level = LevelNames[ userInfoMap[_user].userLevel ];
         return _level;
     }
 
