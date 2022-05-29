@@ -1,6 +1,9 @@
 //SPDX-License-Identifier: MIT
-//This file is not part of any audit, but is useful for testing the functionality of our staking
-//Without the need to deploy on a testnet
+
+//This file is not part of the audit, but is useful for testing the functionality of our staking platform
+//Without the need to deploy TipsyCoin proper on a testnet. Which is a pain, because TipsyCoin integrates with PancakeSwap
+//This file manages the relevant reflex and real space functions without the need for PCS
+//It also has a mintTo function, so it can be used as our Gin stand-in, too 
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -28,8 +31,8 @@ contract ERC20 is IERC20 {
         _symbol = "TestC";
         _name = "TestCoin1";
         _decimals = 18;
-        _totalSupply = 1000e18;
-        _balances[msg.sender] = 1000e18;
+        _totalSupply = 100e6 * 1e18;
+        _balances[msg.sender] = 100e6 * 1e18;
         _rTotal = 1e18;
     }
 
