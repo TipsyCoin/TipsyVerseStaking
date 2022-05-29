@@ -366,7 +366,7 @@ describe('TokenTimeLock Contract Tests', () => {
             let userLevel2 = await tipsyStaking.connect(account2).getUserLevelText(account2.address);
             expect(userLevel2).to.equal("Tipsy Gold");
 
-            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 7 days
             await ethers.provider.send('evm_mine');
             
             await tipsyStaking.connect(account1).Harvest();
@@ -428,7 +428,7 @@ describe('TokenTimeLock Contract Tests', () => {
             let userLevel2 = await tipsyStaking.connect(account2).getUserLevelText(account2.address);
             expect(userLevel2).to.equal("Tipsy Gold");
 
-            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 7 days
             await ethers.provider.send('evm_mine');
             
             await tipsyStaking.connect(deployer).setGinAddress(ginmock.address);
@@ -439,8 +439,8 @@ describe('TokenTimeLock Contract Tests', () => {
             let account1GinBalance = await ginmock.balanceOf(account1.address);
             let account2GinBalance = await ginmock.balanceOf(account2.address);
 
-            // expect(account1GinBalance).to.equal("700004629629629383228");
-            // expect(account2GinBalance).to.equal("3850025462962961607754");
+            expect(account1GinBalance).to.equal("700004629629629383228");
+            expect(account2GinBalance).to.equal("3850025462962961607754");
 
             await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
             await ethers.provider.send('evm_mine');
@@ -455,10 +455,102 @@ describe('TokenTimeLock Contract Tests', () => {
             expect(account2Balance).to.equal(1000000000);
         });
 
+        it('Test 13: Resetting Lock Duration', async () => {
 
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
 
+            const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
+            
+            await tipsyCoinMock.mintTo(account1.address, 100000000);
 
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            
+            await expect(tipsyStaking.connect(account1).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
+            
+            let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("Tipsy Silver");
 
+            await tipsyStaking.connect(deployer).setLockDuration(sevenDays);
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+
+            await tipsyStaking.connect(account1).UnstakeAll();
+
+            let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
+
+            expect(account1Balance).to.equal(100000000);
+        });
+
+        it('Test 14 : User Kick', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+            
+            let Gin = await ethers.getContractFactory('ERC20');
+            Gin = Gin.connect(deployer);
+            ginmock = await Gin.deploy();
+            await ginmock.deployed();
+            
+            const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
+            
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            
+            let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("Tipsy Silver");
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 7 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(deployer).setGinAddress(ginmock.address);
+            
+            await tipsyStaking.connect(account1).Harvest();
+
+            let account1GinBalance = await ginmock.balanceOf(account1.address);
+
+            expect(account1GinBalance).to.equal("700002314814814568414"); //Gin balance of will divide by 1e18
+
+            tipsyStaking.connect(deployer).setLevel(0, 11000000, 1000);
+
+            userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            //expect(userLevel).to.equal("Tipsy Silver"); //Getting No Stake instead
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 7 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(account1).Harvest();
+
+            account1GinBalance = await ginmock.balanceOf(account1.address);   
+
+            expect(account1GinBalance).to.equal("1400004629629629136828");
+            
+            tipsyStaking.connect(account1).Kick();
+            userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("No Stake");
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 7 days
+            await ethers.provider.send('evm_mine');
+
+            await tipsyStaking.connect(account1).Harvest();
+
+            account1GinBalance = await ginmock.balanceOf(account1.address);   
+
+            expect(account1GinBalance).to.equal("1400005787037036544235");
+            
+        });
+
+        it('Test 15 : Reinitialize Attempt', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+
+            await tipsyStaking.deployed();
+            
+            await expect(tipsyStaking.initialize(account1.address, tipsyCoinMock.address)).to.be.revertedWith("Initializable: contract is already initialized");
+        });
 
 
     });
