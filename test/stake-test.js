@@ -290,6 +290,171 @@ describe('TokenTimeLock Contract Tests', () => {
             expect(account2Balance).to.closeTo(ethers.BigNumber.from(1000000000 * 1.05), 100)
         });
 
+        it('Test 10 : Multi-user Staking with Advanced Reflection', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+
+            const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
+            
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+            await tipsyCoinMock.mintTo(account2.address, 1000000000);
+
+            await tipsyCoinMock.setRTotal(ethers.BigNumber.from("1050000000000000000"));
+
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            await tipsyStaking.connect(account2).Stake(50000000); //Get Tipsy Silver
+            
+            await expect(tipsyStaking.connect(account2).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
+            
+            let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("Tipsy Silver");
+
+            let userLevel2 = await tipsyStaking.connect(account2).getUserLevelText(account2.address);
+            expect(userLevel2).to.equal("Tipsy Gold");
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(account1).Harvest();
+            await tipsyStaking.connect(account2).Harvest();
+
+            let allocatedGin1 = await tipsyStaking.getAllocatedGin(account1.address);
+            expect(ethers.BigNumber.from(allocatedGin1)).to.closeTo(ethers.BigNumber.from(ethers.BigNumber.from(sevenDays).mul(ethers.BigNumber.from(1157407407407407))), "10000000000000000"); //should be close to 100 per second for 7 days
+
+            let allocatedGin2 = await tipsyStaking.getAllocatedGin(account2.address);
+            expect(ethers.BigNumber.from(allocatedGin2)).to.closeTo("3850019097222220867015", "10000000000000000"); //should be close to 100 per second for 7 days
+
+            await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+
+            await tipsyCoinMock.setRTotal(ethers.BigNumber.from("1100000000000000000"));
+            
+            await tipsyStaking.connect(account1).UnstakeAll();
+            await tipsyStaking.connect(account2).UnstakeAll();
+
+            let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
+            let account2Balance = await tipsyCoinMock.balanceOf(account2.address);
+
+            expect(account1Balance).to.closeTo(ethers.BigNumber.from(1000000000 * 1.10), 100);
+            expect(account2Balance).to.closeTo(ethers.BigNumber.from(1000000000 * 1.10), 100)
+        });
+
+        it('Test 11 : Activating Gin Live Later', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+            
+            let Gin = await ethers.getContractFactory('ERC20');
+            Gin = Gin.connect(deployer);
+            ginmock = await Gin.deploy();
+            await ginmock.deployed();
+            
+            const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
+            
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+            await tipsyCoinMock.mintTo(account2.address, 1000000000);
+
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            await tipsyStaking.connect(account2).Stake(50000000); //Get Tipsy Gold
+            
+            await expect(tipsyStaking.connect(account2).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
+            
+            let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("Tipsy Silver");
+
+            let userLevel2 = await tipsyStaking.connect(account2).getUserLevelText(account2.address);
+            expect(userLevel2).to.equal("Tipsy Gold");
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(account1).Harvest();
+            await tipsyStaking.connect(account2).Harvest();
+
+            let allocatedGin1 = await tipsyStaking.getAllocatedGin(account1.address);
+            expect(ethers.BigNumber.from(allocatedGin1)).to.closeTo(ethers.BigNumber.from(ethers.BigNumber.from(sevenDays).mul(ethers.BigNumber.from(1157407407407407))), "10000000000000000"); //should be close to 100 per second for 7 days
+
+            let allocatedGin2 = await tipsyStaking.getAllocatedGin(account2.address);
+            expect(ethers.BigNumber.from(allocatedGin2)).to.closeTo("3850019097222220867015", "10000000000000000"); //should be close to 100 per second for 7 days
+            
+            await tipsyStaking.connect(deployer).setGinAddress(ginmock.address);
+            
+            await tipsyStaking.connect(account1).Harvest();
+            await tipsyStaking.connect(account2).Harvest();
+
+            let account1GinBalance = await ginmock.balanceOf(account1.address);
+            let account2GinBalance = await ginmock.balanceOf(account2.address);
+
+            // expect(account1GinBalance).to.equal("3472222222222221");
+            // expect(account2GinBalance).to.equal("19097222222222215");
+
+            await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(account1).UnstakeAll();
+            await tipsyStaking.connect(account2).UnstakeAll();
+
+            let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
+            let account2Balance = await tipsyCoinMock.balanceOf(account2.address);
+
+            expect(account1Balance).to.equal(1000000000);
+            expect(account2Balance).to.equal(1000000000);
+        });
+
+        it('Test 12 : Activating Gin First', async () => {
+
+            const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
+            tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
+            
+            let Gin = await ethers.getContractFactory('ERC20');
+            Gin = Gin.connect(deployer);
+            ginmock = await Gin.deploy();
+            await ginmock.deployed();
+            
+            const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
+            
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+            await tipsyCoinMock.mintTo(account2.address, 1000000000);
+
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            await tipsyStaking.connect(account2).Stake(50000000); //Get Tipsy Gold
+            
+            await expect(tipsyStaking.connect(account2).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
+            
+            let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
+            expect(userLevel).to.equal("Tipsy Silver");
+
+            let userLevel2 = await tipsyStaking.connect(account2).getUserLevelText(account2.address);
+            expect(userLevel2).to.equal("Tipsy Gold");
+
+            await ethers.provider.send('evm_increaseTime', [sevenDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(deployer).setGinAddress(ginmock.address);
+            
+            await tipsyStaking.connect(account1).Harvest();
+            await tipsyStaking.connect(account2).Harvest();
+
+            let account1GinBalance = await ginmock.balanceOf(account1.address);
+            let account2GinBalance = await ginmock.balanceOf(account2.address);
+
+            // expect(account1GinBalance).to.equal("700004629629629383228");
+            // expect(account2GinBalance).to.equal("3850025462962961607754");
+
+            await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
+            await ethers.provider.send('evm_mine');
+            
+            await tipsyStaking.connect(account1).UnstakeAll();
+            await tipsyStaking.connect(account2).UnstakeAll();
+
+            let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
+            let account2Balance = await tipsyCoinMock.balanceOf(account2.address);
+
+            expect(account1Balance).to.equal(1000000000);
+            expect(account2Balance).to.equal(1000000000);
+        });
+
 
 
 

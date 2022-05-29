@@ -179,7 +179,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         return TipsyCoin._realToReflex(_realAmount);
     }  
 
-    function setGinAddress(address _gin) private onlyOwner
+    function setGinAddress(address _gin) public onlyOwner
     {
         require (_gin != address(0));
         GinBridge = IGinMinter(_gin);
