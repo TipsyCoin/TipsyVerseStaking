@@ -12,7 +12,7 @@ describe('TokenTimeLock Contract Tests', () => {
 
     beforeEach(async () => {
         [deployer, account1, account2] = await ethers.getSigners()
-        let TipsyCoin = await ethers.getContractFactory('TipsyCoinMock')
+        let TipsyCoin = await ethers.getContractFactory('ERC20')
         TipsyCoin = TipsyCoin.connect(deployer)
         tipsyCoinMock = await TipsyCoin.deploy()
         await tipsyCoinMock.deployed()
@@ -31,9 +31,9 @@ describe('TokenTimeLock Contract Tests', () => {
 
             const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
             
-            await tipsyCoinMock.mintTo(account1.address, 1000000);
+            await tipsyCoinMock.mintTo(account1.address, 100000000);
 
-            await tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
             
             await expect(tipsyStaking.connect(account1).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
             
@@ -47,7 +47,7 @@ describe('TokenTimeLock Contract Tests', () => {
 
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
 
-            expect(account1Balance).to.equal(1000000);
+            expect(account1Balance).to.equal(100000000);
         });
 
 
@@ -58,9 +58,9 @@ describe('TokenTimeLock Contract Tests', () => {
 
             const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
             
-            await tipsyCoinMock.mintTo(account1.address, 100000);
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
 
-            tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
+            tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
             
             await ethers.provider.send('evm_increaseTime', [sevenDays]); //increase time by a week
             await ethers.provider.send('evm_mine');
@@ -68,7 +68,7 @@ describe('TokenTimeLock Contract Tests', () => {
             let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
             expect(userLevel).to.equal("Tipsy Silver");
 
-            await tipsyStaking.connect(account1).Stake(41); //Get Tipsy Gold
+            await tipsyStaking.connect(account1).Stake(41000000); //Get Tipsy Gold
 
             userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
             expect(userLevel).to.equal("Tipsy Gold");
@@ -85,7 +85,7 @@ describe('TokenTimeLock Contract Tests', () => {
 
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
 
-            expect(account1Balance).to.equal(100000);
+            expect(account1Balance).to.equal(1000000000);
         });
 
         it('Test 3: Staking Silver + Harvesting', async () => {
@@ -93,9 +93,9 @@ describe('TokenTimeLock Contract Tests', () => {
             const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
             tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
             
-            await tipsyCoinMock.mintTo(account1.address, 100000);
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
 
-            await tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
 
             let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
             expect(userLevel).to.equal("Tipsy Silver");
@@ -112,7 +112,7 @@ describe('TokenTimeLock Contract Tests', () => {
             
             
             let allocatedGin = await tipsyStaking.getAllocatedGin(account1.address);
-            expect(allocatedGin).to.closeTo(ethers.BigNumber.from(sevenDays * 100), 100); //should be close to 100 per second for 7 days
+            expect(ethers.BigNumber.from(allocatedGin)).to.closeTo(ethers.BigNumber.from(ethers.BigNumber.from(sevenDays).mul(ethers.BigNumber.from(1157407407407407))), "10000000000000000"); //should be close to 100 per second for 7 days
 
             await expect(tipsyStaking.connect(account1).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
 
@@ -123,7 +123,7 @@ describe('TokenTimeLock Contract Tests', () => {
 
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
 
-            expect(account1Balance).to.equal(100000);
+            expect(account1Balance).to.equal(1000000000);
         });
 
         it('Test 4: Adding Levels', async () => {
@@ -131,14 +131,14 @@ describe('TokenTimeLock Contract Tests', () => {
             const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
             tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
             
-            await tipsyCoinMock.mintTo(account1.address, 100000);
+            await tipsyCoinMock.mintTo(account1.address, 10000000000);
             
-            await expect(tipsyStaking.connect(deployer).addLevel(3, 20, 2000)).to.be.revertedWith("tipsy: staking amount too low for level");
+            await expect(tipsyStaking.connect(deployer).addLevel(3, 20, 2000)).to.be.revertedWith("Tipsy: staking amount too low for level");
 
-            await tipsyStaking.connect(deployer).addLevel(3, 2000, 3000);
+            await tipsyStaking.connect(deployer).addLevel(3, 200000000, 3000);
             await tipsyStaking.connect(deployer).setLevelName(3, "Tipsy GOD")
 
-            await tipsyStaking.connect(account1).Stake(2001); //Get Tipsy God
+            await tipsyStaking.connect(account1).Stake(200000000); //Get Tipsy God
             
             let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
             expect(userLevel).to.equal("Tipsy GOD");
@@ -150,10 +150,10 @@ describe('TokenTimeLock Contract Tests', () => {
             const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
             tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
             
-            await tipsyCoinMock.mintTo(account1.address, 100000);
+            await tipsyCoinMock.mintTo(account1.address, 10000000000);
             
-            //await expect(tipsyStaking.connect(deployer).setLevel(1, 5000, 2000)).to.be.revertedWith("tipsy: staking amount too high for level"); //BUG, this only breaks when staking level is 0
-            await expect(tipsyStaking.connect(deployer).setLevel(0, 5000, 2000)).to.be.revertedWith("tipsy: staking amount too high for 0");
+            await expect(tipsyStaking.connect(deployer).setLevel(1, 10000000000, 2000)).to.be.revertedWith("Tipsy: staking amount too high for level"); //BUG, this only breaks when staking level is 0
+            await expect(tipsyStaking.connect(deployer).setLevel(0, 10000000000, 2000)).to.be.revertedWith("Tipsy: staking amount set too high for Lv0");
         });
 
         it('Test 6: Deleting Levels', async () => {
@@ -173,9 +173,9 @@ describe('TokenTimeLock Contract Tests', () => {
             const TipsyStaking = await ethers.getContractFactory('TipsyStaking');
             tipsyStaking = await TipsyStaking.deploy(tipsyCoinMock.address);
     
-            await tipsyCoinMock.mintTo(account1.address, 1000000);
+            await tipsyCoinMock.mintTo(account1.address, 100000000);
 
-            await tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
             
             let userLevel = await tipsyStaking.connect(account1).getUserLevelText(account1.address);
             expect(userLevel).to.equal("Tipsy Silver");
@@ -193,7 +193,7 @@ describe('TokenTimeLock Contract Tests', () => {
 
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
 
-            expect(account1Balance).to.equal(1000000);
+            expect(account1Balance).to.equal(100000001); //rounding
         });
 
         it('Test 8 : Multi-user Staking', async () => {
@@ -203,11 +203,11 @@ describe('TokenTimeLock Contract Tests', () => {
 
             const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
             
-            await tipsyCoinMock.mintTo(account1.address, 1000000);
-            await tipsyCoinMock.mintTo(account2.address, 10000000);
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+            await tipsyCoinMock.mintTo(account2.address, 1000000000);
 
-            await tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
-            await tipsyStaking.connect(account2).Stake(101); //Get Tipsy Silver
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            await tipsyStaking.connect(account2).Stake(50000000); //Get Tipsy Gold
             
             await expect(tipsyStaking.connect(account2).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
             
@@ -224,10 +224,10 @@ describe('TokenTimeLock Contract Tests', () => {
             await tipsyStaking.connect(account2).Harvest();
 
             let allocatedGin1 = await tipsyStaking.getAllocatedGin(account1.address);
-            expect(allocatedGin1).to.closeTo(ethers.BigNumber.from(sevenDays * 100), 1000); //should be close to 100 per second for 90 days
+            expect(ethers.BigNumber.from(allocatedGin1)).to.closeTo(ethers.BigNumber.from(ethers.BigNumber.from(sevenDays).mul(ethers.BigNumber.from(1157407407407407))), "10000000000000000"); //should be close to 100 per second for 7 days
 
             let allocatedGin2 = await tipsyStaking.getAllocatedGin(account2.address);
-            expect(allocatedGin2).to.closeTo(ethers.BigNumber.from(sevenDays * 200), 1000); //should be close to 200 per second for 90 days
+            expect(ethers.BigNumber.from(allocatedGin2)).to.closeTo("3850019097222220867015", "10000000000000000"); //should be close to 100 per second for 7 days
 
             await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
             await ethers.provider.send('evm_mine');
@@ -238,8 +238,8 @@ describe('TokenTimeLock Contract Tests', () => {
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
             let account2Balance = await tipsyCoinMock.balanceOf(account2.address);
 
-            expect(account1Balance).to.equal(1000000);
-            expect(account2Balance).to.equal(10000000);
+            expect(account1Balance).to.equal(1000000000);
+            expect(account2Balance).to.equal(1000000000);
         });
 
         it('Test 9 : Multi-user Staking with Basic Reflection', async () => {
@@ -249,11 +249,11 @@ describe('TokenTimeLock Contract Tests', () => {
 
             const timeNow = (await ethers.provider.getBlock(await ethers.provider.getBlockNumber())).timestamp;
             
-            await tipsyCoinMock.mintTo(account1.address, 1000000);
-            await tipsyCoinMock.mintTo(account2.address, 10000000);
+            await tipsyCoinMock.mintTo(account1.address, 1000000000);
+            await tipsyCoinMock.mintTo(account2.address, 1000000000);
 
-            await tipsyStaking.connect(account1).Stake(60); //Get Tipsy Silver
-            await tipsyStaking.connect(account2).Stake(101); //Get Tipsy Silver
+            await tipsyStaking.connect(account1).Stake(10000000); //Get Tipsy Silver
+            await tipsyStaking.connect(account2).Stake(50000000); //Get Tipsy Silver
             
             await expect(tipsyStaking.connect(account2).UnstakeAll()).to.be.revertedWith("Tipsy: Can't unstake before Lock is over");
             
@@ -270,10 +270,10 @@ describe('TokenTimeLock Contract Tests', () => {
             await tipsyStaking.connect(account2).Harvest();
 
             let allocatedGin1 = await tipsyStaking.getAllocatedGin(account1.address);
-            expect(allocatedGin1).to.closeTo(ethers.BigNumber.from(sevenDays * 100), 1000); //should be close to 100 per second for 90 days
+            expect(ethers.BigNumber.from(allocatedGin1)).to.closeTo(ethers.BigNumber.from(ethers.BigNumber.from(sevenDays).mul(ethers.BigNumber.from(1157407407407407))), "10000000000000000"); //should be close to 100 per second for 7 days
 
             let allocatedGin2 = await tipsyStaking.getAllocatedGin(account2.address);
-            expect(allocatedGin2).to.closeTo(ethers.BigNumber.from(sevenDays * 200), 1000); //should be close to 200 per second for 90 days
+            expect(ethers.BigNumber.from(allocatedGin2)).to.closeTo("3850019097222220867015", "10000000000000000"); //should be close to 100 per second for 7 days
 
             await ethers.provider.send('evm_increaseTime', [ninetyDays]); //Increase time by 90 days
             await ethers.provider.send('evm_mine');
@@ -286,8 +286,8 @@ describe('TokenTimeLock Contract Tests', () => {
             let account1Balance = await tipsyCoinMock.balanceOf(account1.address);
             let account2Balance = await tipsyCoinMock.balanceOf(account2.address);
 
-            expect(account1Balance).to.closeTo(ethers.BigNumber.from(1000000 * 1.05), 100);
-            expect(account2Balance).to.closeTo(ethers.BigNumber.from(10000000 * 1.05), 100)
+            expect(account1Balance).to.closeTo(ethers.BigNumber.from(1000000000 * 1.05), 100);
+            expect(account2Balance).to.closeTo(ethers.BigNumber.from(1000000000 * 1.05), 100)
         });
 
 
