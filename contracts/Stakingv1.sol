@@ -36,7 +36,9 @@ interface ITipsy is IERC20Metadata {
 //And to prevent randos from initializing / taking over the base contract
 abstract contract Ownable is Context {
     address private _owner;
+    address public keeper;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event KeeperTransferred(address indexed previousKeeper, address indexed newKeeper);
 
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
@@ -58,8 +60,14 @@ abstract contract Ownable is Context {
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(owner() == _msgSender(), "Ownable123: caller is not the owner");
+        require(owner() == _msgSender(), "TipsyOwnable: caller is not the owner");
         _;
+    }
+
+    modifier onlyOwnerOrKeeper()
+    {
+      require(owner() == _msgSender() || keeper == _msgSender(), "TipsyOwnable: caller is not the owner or not a keeper");   
+      _;
     }
 
     /**
@@ -80,6 +88,12 @@ abstract contract Ownable is Context {
     function transferOwnership(address newOwner) external virtual onlyOwner {
         require(newOwner != address(0), "Ownable: new owner is the zero address");
         _transferOwnership(newOwner);
+    }
+
+    function transferKeeper(address _newKeeper) external virtual onlyOwner {
+        require(_newKeeper != address(0), "Ownable: new Keeper is the zero address");
+        emit KeeperTransferred(keeper, _newKeeper);
+        keeper = _newKeeper;
     }
 
     /**
@@ -401,7 +415,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
     }
 
 
-    function adminKick(address _user) public onlyOwner whenPaused
+    function adminKick(address _user) public onlyOwnerOrKeeper whenPaused
     {
         //Admin Kick() for any user. Just so we can update old weights and multipliers if they're not behaving properly
         //May only be used when Paused
@@ -417,14 +431,14 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
     }
 
 
-    function addLevel(uint8 _stakingLevel, uint amountStaked, uint multiplier) public onlyOwner
+    function addLevel(uint8 _stakingLevel, uint amountStaked, uint multiplier) public
     {
         require(UserLevels[_stakingLevel].minimumStaked == 0, "Not a new level");
         setLevel(_stakingLevel, amountStaked, multiplier);
         _levelCount++;
     }
 
-    function setLevel(uint8 stakingLevel, uint amountStaked, uint _multiplier) public onlyOwner
+    function setLevel(uint8 stakingLevel, uint amountStaked, uint _multiplier) public onlyOwnerOrKeeper
     {
         //SET LEVEL AMOUNT MUST BE IN REFLEX SPACE
         require(stakingLevel < ~uint8(0), "reserved for no stake status");
@@ -441,12 +455,12 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         UserLevels[stakingLevel].multiplier = _multiplier;
     }
 
-    function setLevelName(uint8 stakingLevel, string memory _name) public onlyOwner
+    function setLevelName(uint8 stakingLevel, string memory _name) public onlyOwnerOrKeeper
     {
         LevelNames[stakingLevel] = _name;
     }
 
-    function deleteLevel(uint8 stakingLevel) public onlyOwner returns (bool)
+    function deleteLevel(uint8 stakingLevel) public onlyOwnerOrKeeper returns (bool)
     {
         require(stakingLevel == _levelCount-1, "Tipsy: Must delete Highest level first");
         UserLevels[stakingLevel].minimumStaked = 0;
@@ -455,12 +469,12 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         return true;
     }
 
-    function pause() public onlyOwner whenNotPaused
+    function pause() public onlyOwnerOrKeeper whenNotPaused
     {
         _pause();
     }
 
-    function unpause() public onlyOwner whenPaused
+    function unpause() public onlyOwnerOrKeeper whenPaused
     {
         _unpause();
     }
@@ -470,15 +484,24 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
     //Constructor is for Testing only. Real version should be initialized() as we're using proxies
     constructor(address _tipsyAddress)
     {   
-        initialize(msg.sender, _tipsyAddress);
+        //Owner() = 48 hours Timelock owned by multisig will be used
+        //Timelock found here: https://bscscan.com/address/0xe50B0004DC067E5D2Ff6EC0f7bf9E9d8Eb1E83a6
+        //Multisig here: https://bscscan.com/address/0x884c908ea193b0bb39f6a03d8f61c938f862e153
+        //Keeper will be an EOA
+
+        initialize(msg.sender, msg.sender, _tipsyAddress);
         //stake(50e6 * 10 ** TipsyCoin.decimals());
         //require(getAllocatedGin(msg.sender) == 0, "Shoudn't be more than zero here");
+        //Do anyother setup here
+        _transferOwnership(0xe50B0004DC067E5D2Ff6EC0f7bf9E9d8Eb1E83a6);
     }
 
-    function initialize(address owner_, address _tipsyAddress) public initializer
+    function initialize(address owner_, address _keeper, address _tipsyAddress) public initializer
     {   
+        require(_keeper != address(0), "Tipsy: keeper can't be 0 address");
         require(owner_ != address(0), "Tipsy: owner can't be 0 address");
         require(_tipsyAddress != address(0), "Tipsy: Tipsy can't be 0 address");
+        keeper = _keeper;
         TipsyAddress = _tipsyAddress;
         initOwnership(owner_);
         lockDuration = 90 days;
