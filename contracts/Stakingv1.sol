@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 interface IGinMinter {
     function mintTo(
@@ -103,7 +104,7 @@ abstract contract Ownable is Context {
  * @dev Store & retrieve value in a variable
  */
 
-contract TipsyStaking is Ownable, Initializable, Pausable {
+contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
 
     //Private / Internal Vars
     //Not private for security reasons, just to prevent clutter in bscscan
@@ -336,7 +337,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
     }
 
     //Maybe? Only allow emergency withdraw if paused, and user forfeits any pending harvest
-    function EmergencyUnstake() public whenPaused returns (uint _tokenToReturn)
+    function EmergencyUnstake() public whenPaused nonReentrant returns (uint _tokenToReturn)
     {
         require(userInfoMap[msg.sender].lastWeight > 0, "Tipsy: Can't unstake (no active stake)");
         _tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
@@ -351,7 +352,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         return _tokenToReturn;
     }
 
-        function harvest() public whenNotPaused returns(uint _harvested)
+        function harvest() public whenNotPaused nonReentrant returns(uint _harvested)
     {
         //Calculate how many tokens have been earned
         _harvested = harvestCalc(msg.sender);
