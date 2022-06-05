@@ -307,12 +307,12 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         //We have to be careful about a first harvest, because userLevel inits to 0, which is an actual real level
         //And lastRewardBlock will init to 0, too, so a bazillion tokens will be allocated
         harvest();
-
         //Convert reflex space _amount, into real space amount. +1 to prevent annoying division rounding errors
-        uint realAmount = reflexToReal(_amount + 1);
-
+        //uint realAmount = reflexToReal(_amount + 1);
         //TipsyCoin public methods like transferFrom take reflex space params
+        uint _prevBal = TipsyCoin.balanceOf(address(this));
         require(TipsyCoin.transferFrom(msg.sender, address(this), _amount), "Tipsy: transferFrom user failed");
+        uint realAmount = TipsyCoin._reflexToReal(TipsyCoin.balanceOf(address(this)) - _prevBal);
 
         //Measure all weightings in real space
         userInfoMap[msg.sender].lastAction = block.timestamp;
@@ -519,7 +519,6 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         //AddLevel = Level, Amount Staked, Multiplier
         //GinDrip is PER SECOND, PER USER, based on a multiplier of 1000 (1x)
         ginDripPerUser = 1157407407407407; //100 Gin per day = 100×1e18 / 24 / 60 / 60
-        require(TipsyCoin._realToReflex(1e18) >= 1e18, "TipsyCoin test function check failed");
+        //require(TipsyCoin._realToReflex(1e18) >= 1e18, "TipsyCoin: test check fail");
     }
-
 }
