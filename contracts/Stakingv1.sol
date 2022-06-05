@@ -175,6 +175,13 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         uint indexed newTotal
     );
 
+    event UserKicked(
+        address indexed userKicked,
+        uint8 indexed newLevel,
+        uint indexed newMultiplier,
+        bool adminKick
+    );
+
     //View Functions
     function reflexToReal(uint _reflexAmount) public view returns (uint){
         return TipsyCoin._reflexToReal(_reflexAmount);
@@ -377,6 +384,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         harvest();
         userInfoMap[msg.sender].userLevel = getLevel(getStakeReflex(msg.sender));
         userInfoMap[msg.sender].userMulti = UserLevels[userInfoMap[msg.sender].userLevel].multiplier;
+        emit UserKicked(msg.sender, userInfoMap[msg.sender].userLevel, userInfoMap[msg.sender].userMulti, false);
     }
 
     //Restricted Write Functions
@@ -398,6 +406,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable {
         //May only be used when Paused
         userInfoMap[_user].userLevel = getLevel(getStakeReflex(_user));
         userInfoMap[_user].userMulti = UserLevels[userInfoMap[_user].userLevel].multiplier;
+        emit UserKicked(_user, userInfoMap[_user].userLevel, userInfoMap[_user].userMulti, true);
     }
 
     function setLockDuration(uint _newDuration) public onlyOwner
