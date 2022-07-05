@@ -28,8 +28,8 @@ contract ERC20 is IERC20 {
 
     constructor ()
     {
-        _symbol = "TestC";
-        _name = "TestCoin1";
+        _symbol = "tipsyT";
+        _name = "Test TipsyCoin";
         _decimals = 18;
         _totalSupply = 100e6 * 1e18;
         _balances[msg.sender] = 100e6 * 1e18;
@@ -125,11 +125,9 @@ contract ERC20 is IERC20 {
         address recipient,
         uint256 amount
     ) public returns (bool) {
-
-        //Skip collecting fee if sender (person's tokens getting pulled) is excludedFromFee
+    
         _transfer(sender, recipient, amount);
-        //Emit Transfer Event. _taxTransaction emits a seperate sell fee collected event, _reflect also emits a reflect ratio changed event
-
+        emit Transfer(sender, recipient, amount);
         return true;
     }
 
