@@ -268,7 +268,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
     //Not used in code, but may be useful for front end to easily show reflex space staked balance to user
     function getUserBal(address _user) public view returns (uint)
     {
-        return (TipsyCoin._realToReflex(userInfoMap[_user].lastWeight + 1));
+        return (TipsyCoin._realToReflex(userInfoMap[_user].lastWeight));
     }
 
     //Testing View Params
@@ -312,7 +312,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         //TipsyCoin public methods like transferFrom take reflex space params
         uint _prevBal = TipsyCoin.balanceOf(address(this));
         require(TipsyCoin.transferFrom(msg.sender, address(this), _amount), "Tipsy: transferFrom user failed");
-        uint realAmount = TipsyCoin._reflexToReal(TipsyCoin.balanceOf(address(this)) - _prevBal);
+        uint realAmount = TipsyCoin._reflexToReal(TipsyCoin.balanceOf(address(this))+1 - _prevBal);
 
         //Measure all weightings in real space
         userInfoMap[msg.sender].lastAction = block.timestamp;
@@ -336,8 +336,8 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         require(userInfoMap[msg.sender].lastWeight > 0, "Tipsy: Your staked amount is already Zero");
         harvest();
         //Calculate balance to return. Gets a bit difficult with reflex rewards
-        _tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
-
+        //_tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
+	_tokenToReturn = TipsyCoin._realToReflex(userInfoMap[msg.sender].lastWeight) - 1;
         emit Unstaked(msg.sender, _tokenToReturn, 0);
 
         totalWeight -= userInfoMap[msg.sender].lastWeight;
@@ -354,7 +354,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
     function EmergencyUnstake() public whenPaused nonReentrant returns (uint _tokenToReturn)
     {
         require(userInfoMap[msg.sender].lastWeight > 0, "Tipsy: Can't unstake (no active stake)");
-        _tokenToReturn = TipsyCoin.balanceOf(address(this)) * userInfoMap[msg.sender].lastWeight / totalWeight;
+        _tokenToReturn = TipsyCoin._realToReflex(userInfoMap[msg.sender].lastWeight) - 1;
         emit Unstaked(msg.sender, _tokenToReturn, 0);
         totalWeight -= userInfoMap[msg.sender].lastWeight;
         userInfoMap[msg.sender].lastWeight = 0;
@@ -493,7 +493,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         //stake(50e6 * 10 ** TipsyCoin.decimals());
         //require(getAllocatedGin(msg.sender) == 0, "Shoudn't be more than zero here");
         //Do anyother setup here
-        _transferOwnership(0xe50B0004DC067E5D2Ff6EC0f7bf9E9d8Eb1E83a6);
+        //_transferOwnership(0xe50B0004DC067E5D2Ff6EC0f7bf9E9d8Eb1E83a6);
     }
 
     function initialize(address owner_, address _keeper, address _tipsyAddress) public initializer
@@ -509,12 +509,12 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         TipsyCoin = ITipsy(TipsyAddress);
         //AddLevel amount MUST BE IN REAL SPACE
         //AddLevel multiplier 1000 = 1x
-        addLevel(0, 10e6 * 10 ** TipsyCoin.decimals(), 1000); //10 Million $tipsy, 1x
-        addLevel(1, 50e6 * 10 ** TipsyCoin.decimals(), 5500); //50 Million $tipsy, 5.5x
-        addLevel(2, 100e6 * 10 ** TipsyCoin.decimals(), 12000); //100 Million $tipsy, 12x
-        setLevelName(0, "Tipsy Silver");
-        setLevelName(1, "Tipsy Gold");
-        setLevelName(2, "Tipsy Platinum");
+        addLevel(0, 20e6 * 10 ** TipsyCoin.decimals()-100, 1000); //10 Million $tipsy, 1x
+        addLevel(1, 100e6 * 10 ** TipsyCoin.decimals()-100, 6000); //100 Million $tipsy, 6x
+        addLevel(2, 200e6 * 10 ** TipsyCoin.decimals()-100, 14000); //200 Million $tipsy, 14x
+        setLevelName(0, "Tier I");
+        setLevelName(1, "Tier II");
+        setLevelName(2, "Tier III");
         setLevelName(~uint8(0), "No Stake");
         //AddLevel = Level, Amount Staked, Multiplier
         //GinDrip is PER SECOND, PER USER, based on a multiplier of 1000 (1x)
