@@ -371,7 +371,7 @@ contract TipsyStaking is Ownable, Initializable, Pausable, ReentrancyGuard {
         //Calculate how many tokens have been earned
         _harvested = harvestCalc(msg.sender);
         userInfoMap[msg.sender].lastRewardBlock = block.timestamp;
-        if (_harvested == 0) return 0;
+        //if (_harvested == 0) return 0; don't do this, or a user who unstakes can't get real tokens once actual mint hits
         //Do a switch based on whether we're live Minting or just Allocating
         if (!actualMint)
         {
