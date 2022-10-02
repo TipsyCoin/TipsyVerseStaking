@@ -9,6 +9,10 @@ TipsyCoin staking (TipsyStake) is the next step towards the release of the Tipsy
 
 Users staking TipsyCoin will also receive a discount for in-game items based on their staking tier, and may also be integrated with upcoming projects in the TipsyVerse ecosystem.
 
+## Contract Address
+- Mainnet: bscscan.com/address/0xAd1C1A04bB050530c2511d4113b81eD7396E3Fb3
+- Testnet: bscscan.com/address/0xba09486a76319dd97742700da784d3f25402fcdd 
+
 ## Design notes
 - The TipsyVerse Minecraft game is to be released on the Polygon network, but the tokenomic design and BSC -> Polygon bridge design have not yet been finalized, so there is a period of time where Gin rewards will be tracked on TipsyStake, but cannot be collected or bridged to Polygon.
 
